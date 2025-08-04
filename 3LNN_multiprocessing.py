@@ -10,6 +10,26 @@ import pickle
 import multiprocessing as mp
 from multiprocessing import Process, get_context
 
+#REVISAR SI SE PUEDE USAR ESO DE DEVOLVER DISTINTA CANTIDAD DE SALIDAS
+def rolling(data):
+    # Extract the MAPE values from the nested list
+    error_data = [point[1] for point in data]
+    rolling_mean = np.zeros(len(error_data)-1999)
+    rolling_sdv = np.zeros(len(error_data)-1999)
+
+    # Compute the rolling mean for 1000 values
+    buffer = error_data[1000:2000]
+    rolling_mean[0] = np.mean(buffer)
+    rolling_sdv[0] = np.std(buffer)
+    j = 0
+    for i in range(2000, len(error_data)):
+        buffer[j] = error_data[i]
+        rolling_mean[i-1999] = np.mean(buffer)
+        rolling_sdv[i-1999] = np.std(buffer)
+        j += 1
+        if j == 1000:
+            j = 0
+    return rolling_mean, rolling_sdv
 
 # For loop to train the different models, PS Power (TP), PL Power (BP) and execution time
 def train_process(mt, L1, features, labels):
@@ -29,16 +49,17 @@ def train_process(mt, L1, features, labels):
             for L3 in third_layer :
                 resultados[mt][L1][L2][L3] = {50: {}, 25: {}, 1: {}}
                 for bs in batch_size :
-                    resultados[mt][L1][L2][L3][bs] = {'MAPE-mean-error': {}, 'MAPE-sdv-error': {}, 'Train-time': {}, 'Infer-time': {}}
+                    resultados[mt][L1][L2][L3][bs] = {'MAPE-mean-error': {}, 'MAPE-sdv-error': {}, 'MAPE-mean-error_cv': {}, 'MAPE-sdv-error_cv': {}, 'Train-time': {}, 'Infer-time': {}}
 
     for L2 in second_layer:
         for L3 in third_layer:
             for bs in batch_size:
                 print("Modelo - First Layer - Second Layer - Third layer - bs: " + mt + " - " + str(L1) + " - " + str(L2) + " - " + str(L3) + " - " + str(bs))
-                cv = 3
+                cv = 4
                 infer_time = 0
                 train_time = 0
                 MAPE_mean = []
+                MAPE_std = []
 
                 # For loop for 3-fold cross-validation
                 for j in range(cv):
@@ -110,17 +131,24 @@ def train_process(mt, L1, features, labels):
                         train_time = train_time + end_time-start_time
 
                     with tf.device('/CPU:0'):
-                        error_values = [point[1] for point in buffer_MAPE]
-                        dummy_mean = np.mean(error_values)
+                        rolling_mean, rollind_std = rolling(buffer_MAPE)
+                        dummy_mean = np.mean(rolling_mean)
                         MAPE_mean.append(dummy_mean)
-                        del error_values, dummy_mean
+                        dummy_std = np.mean(rollind_std)
+                        MAPE_std.append(dummy_std)
+                        del rolling_mean, rollind_std#, dummy_mean, dummy_std
                     del buffer_MAPE, model
 
                 with tf.device('/CPU:0'):
+                    #resultados[mt][L1][L2][L3][bs]['MAPE-mean-error'] = dummy_mean
+                    #resultados[mt][L1][L2][L3][bs]['MAPE-sdv-error'] = dummy_std
                     resultados[mt][L1][L2][L3][bs]['MAPE-mean-error'] = float(np.mean(MAPE_mean))
-                    resultados[mt][L1][L2][L3][bs]['MAPE-sdv-error'] = float(np.std(MAPE_mean))
+                    resultados[mt][L1][L2][L3][bs]['MAPE-sdv-error'] = float(np.mean(MAPE_std))
+                    resultados[mt][L1][L2][L3][bs]['MAPE-mean-error_cv'] = float(np.std(MAPE_mean))
+                    resultados[mt][L1][L2][L3][bs]['MAPE-sdv-error_cv'] = float(np.std(MAPE_std))
                     resultados[mt][L1][L2][L3][bs]['Train-time'] = float(train_time*bs/(cv*labels.size))
                     resultados[mt][L1][L2][L3][bs]['Infer-time'] = float(infer_time/(cv*labels.size))
+
     with tf.device('/CPU:0'):
         with open("NN-3layers-dictionary_" + str(mt) + "_" + str(L1) + ".pkl", "wb") as NN_3layers_dict:
             pickle.dump(resultados, NN_3layers_dict)
@@ -161,7 +189,7 @@ def main():
     Time = labels.iloc[:, 2]
 
     # Create process
-    #p1 = ctx.Process(target=train_process, args=(modelos[0], first_layer[0], features, TP))
+    p1 = ctx.Process(target=train_process, args=(modelos[0], first_layer[0], features, TP))
     #p2 = ctx.Process(target=train_process, args=(modelos[0], first_layer[1], features, TP))
     #p3 = ctx.Process(target=train_process, args=(modelos[0], first_layer[2], features, TP))
     #p4 = ctx.Process(target=train_process, args=(modelos[1], first_layer[0], features, BP))
@@ -169,10 +197,10 @@ def main():
     #p6 = ctx.Process(target=train_process, args=(modelos[1], first_layer[2], features, BP))
     #p7 = ctx.Process(target=train_process, args=(modelos[2], first_layer[0], features, Time))
     #p8 = ctx.Process(target=train_process, args=(modelos[2], first_layer[1], features, Time))
-    p9 = ctx.Process(target=train_process, args=(modelos[2], first_layer[2], features, Time))
+    #p9 = ctx.Process(target=train_process, args=(modelos[2], first_layer[2], features, Time))
 
     # Start task execution
-    #p1.start()
+    p1.start()
     #p2.start()
     #p3.start()
     #p4.start()
@@ -180,10 +208,10 @@ def main():
     #p6.start()
     #p7.start()
     #p8.start()
-    p9.start()
+    #p9.start()
 
     # Wait for process to complete execution
-    #p1.join()
+    p1.join()
     #p2.join()
     #p3.join()
     #p4.join()
@@ -191,7 +219,7 @@ def main():
     #p6.join()
     #p7.join()
     #p8.join()
-    p9.join()
+    #p9.join()
 
 
 if __name__ == "__main__":

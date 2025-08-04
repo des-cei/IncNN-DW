@@ -44,8 +44,8 @@ for modelo in modelos:
 ###############################################################################################################################################
 ############################################################### Top Power model ###############################################################
 ###############################################################################################################################################
-params_TP = [25, 25, 10, 25] # [First-Layer, Second-Layer, Third-Layer, Batch-Size]
-params_TP_str = 'First Layer = 25, Second Layer = 25, Third Layer = 10, Batch Size = 25'
+params_TP = [35, 30, 15, 25] # [First-Layer, Second-Layer, Third-Layer, Batch-Size]
+params_TP_str = 'First Layer = 35, Second Layer = 30, Third Layer = 15, Batch Size = 25'
 infer_time = 0
 train_time = 0
 MAPE_mean = []
@@ -117,8 +117,8 @@ del MAPE_mean
 ##############################################################################################################################################
 ############################################################# Bottom Power model #############################################################
 ##############################################################################################################################################
-params_BP = [35, 25, 15, 1] # [First-Layer, Second-Layer, Third-Layer, Batch-Size]
-params_BP_str = 'First Layer = 35, Second Layer = 25, Third Layer = 15, Batch Size = 1'
+params_BP = [28, 0.2, 12, 25] # [First-Layer,  DropOut, Second-Layer, Batch-Size]
+params_BP_str = 'First Layer = 28, DropOut = 0.2, Second Layer = 12, Batch Size = 1'
 infer_time = 0
 train_time = 0
 MAPE_mean = []
@@ -130,7 +130,7 @@ for j in range(cv):
     model = Sequential([
         layers.Input(shape=(features.shape[1],)),
         layers.Dense(params_BP[0], activation='relu'),
-        layers.Dense(params_BP[1], activation='relu'),
+        layers.Dropout(params_BP[1]),
         layers.Dense(params_BP[2], activation='relu'),
         layers.Dense(1)
     ])
@@ -167,8 +167,8 @@ del MAPE_mean
 ##############################################################################################################################################
 ############################################################## Time model ####################################################################
 ##############################################################################################################################################
-params_Time = [20, 0, 24, 1] # [First-Layer, Dropout, Second-Layer, Batch-Size]
-params_Time_str = 'First Layer = 20, Dropout = 0, Second Layer = 24, Batch Size = 1'
+params_Time = [20, 0, 20, 1] # [First-Layer, Dropout, Second-Layer, Batch-Size]
+params_Time_str = 'First Layer = 20, Dropout = 0, Second Layer = 20, Batch Size = 1'
 infer_time = 0
 train_time = 0
 MAPE_mean = []
@@ -180,7 +180,7 @@ for j in range(cv):
     model = Sequential([
         layers.Input(shape=(features.shape[1],)),
         layers.Dense(params_Time[0], activation='relu'),
-        #layers.Dropout(params_TP[1]),   Como es cero, podemos comentar la línea y simplificar el modelo
+        #layers.Dropout(params_Time[1]),   Como es cero, podemos comentar la línea y simplificar el modelo
         layers.Dense(params_Time[2], activation='relu'),
         layers.Dense(1)
     ])
