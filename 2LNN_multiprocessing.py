@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import os
 import tensorflow as tf
-from keras import layers, Sequential
+from keras import layers, Sequential, initializers
 import time
 import pickle
 import multiprocessing as mp
@@ -35,29 +35,29 @@ def rolling(data):
 def train_process(mt, features, labels):
     with tf.device('/CPU:0'):
         print("Modelo: " + str(mt))
-        first_layer = [32, 28, 24, 20]
+        first_layer = [36, 32, 28, 24, 20]
         dropout = [0, 0.2, 0.3, 0.5]
-        second_layer =  [24, 20, 16, 12]
-        batch_size = [50,25,1]
+        second_layer =  [24, 20, 16, 12, 8]
+        batch_size = [50,25,10,1]
 
         # Dictionary to store metrics for all synthetic data generation combinations
         resultados = {mt: {}}
-        resultados[mt] = {32: {}, 28: {}, 24: {}, 20: {}}
+        resultados[mt] = {36: {}, 32: {}, 28: {}, 24: {}, 20: {}}
 
         for L1 in first_layer:
-            resultados[mt][L1] = {0: {}, 0.2:{}, 0.3: {}, 0.5:{}}
-            for dp in dropout:
-                resultados[mt][L1][dp] = {24: {}, 20: {}, 16: {}, 12: {}}
-                for L2 in second_layer :
-                    resultados[mt][L1][dp][L2] = {50: {}, 25: {}, 1: {}}
+            resultados[mt][L1] = {24: {}, 20: {}, 16: {}, 12: {}, 8: {}}
+            #for dp in dropout:
+                #resultados[mt][L1][dp] = {24: {}, 20: {}, 16: {}, 12: {}}
+            for L2 in second_layer :
+                    resultados[mt][L1][L2] = {50: {}, 25: {}, 10: {}, 1: {}}
                     for bs in batch_size :
-                        resultados[mt][L1][dp][L2][bs] = {'MAPE-mean-error': {}, 'MAPE-sdv-error': {}, 'MAPE-mean-error_cv': {}, 'MAPE-sdv-error_cv': {}, 'Train-time': {}, 'Infer-time': {}}
+                        resultados[mt][L1][L2][bs] = {'MAPE-mean-error': {}, 'MAPE-sdv-error': {}, 'MAPE-mean-error_cv': {}, 'MAPE-sdv-error_cv': {}, 'Train-time': {}, 'Infer-time': {}}
 
     for L1 in first_layer:
-        for dp in dropout:
+        #for dp in dropout:
             for L2 in second_layer:
                 for bs in batch_size:
-                    print("Modelo - First Layer - Dropout - Second Layer - bs: " + mt + " - " + str(L1) + " - " + str(dp) + " - " + str(L2) + " - " + str(bs))
+                    print("Modelo - First Layer - Second Layer - bs: " + mt + " - " + str(L1) + " - " + str(L2) + " - " + str(bs))
                     cv = 4
                     infer_time = 0
                     train_time = 0
@@ -70,9 +70,9 @@ def train_process(mt, features, labels):
 
                         model = Sequential([
                             layers.Input(shape=(features.shape[1],)),
-                            layers.Dense(L1, activation='relu'),
-                            layers.Dropout(dp),
-                            layers.Dense(L2, activation='relu'),
+                            layers.Dense(L1, activation='relu', kernel_initializer=initializers.RandomNormal(seed=1) , bias_initializer=initializers.zeros()),
+                            #layers.Dropout(dp),
+                            layers.Dense(L2, activation='relu', kernel_initializer=initializers.RandomNormal(seed=1) , bias_initializer=initializers.zeros()),
                             layers.Dense(1)
                         ])
 
@@ -145,12 +145,12 @@ def train_process(mt, features, labels):
                     with tf.device('/CPU:0'):
                         #resultados[mt][L1][dp][L2][bs]['MAPE-mean-error'] = dummy_mean
                         #resultados[mt][L1][dp][L2][bs]['MAPE-sdv-error'] = dummy_std
-                        resultados[mt][L1][dp][L2][bs]['MAPE-mean-error'] = float(np.mean(MAPE_mean))
-                        resultados[mt][L1][dp][L2][bs]['MAPE-sdv-error'] = float(np.mean(MAPE_std))
-                        resultados[mt][L1][dp][L2][bs]['MAPE-mean-error_cv'] = float(np.std(MAPE_mean))
-                        resultados[mt][L1][dp][L2][bs]['MAPE-sdv-error_cv'] = float(np.std(MAPE_std))
-                        resultados[mt][L1][dp][L2][bs]['Train-time'] = float(train_time*bs/(cv*labels.size))
-                        resultados[mt][L1][dp][L2][bs]['Infer-time'] = float(infer_time/(cv*labels.size))
+                        resultados[mt][L1][L2][bs]['MAPE-mean-error'] = float(np.mean(MAPE_mean))
+                        resultados[mt][L1][L2][bs]['MAPE-sdv-error'] = float(np.mean(MAPE_std))
+                        resultados[mt][L1][L2][bs]['MAPE-mean-error_cv'] = float(np.std(MAPE_mean))
+                        resultados[mt][L1][L2][bs]['MAPE-sdv-error_cv'] = float(np.std(MAPE_std))
+                        resultados[mt][L1][L2][bs]['Train-time'] = float(train_time*bs/(cv*labels.size))
+                        resultados[mt][L1][L2][bs]['Infer-time'] = float(infer_time/(cv*labels.size))
 
 
     with tf.device('/CPU:0'):
@@ -192,19 +192,19 @@ def main():
     Time = labels.iloc[:, 2]
 
     # Create process
-    p1 = ctx.Process(target=train_process, args=(modelos[0], features, TP))
+    #p1 = ctx.Process(target=train_process, args=(modelos[0], features, TP))
     #p2 = ctx.Process(target=train_process, args=(modelos[1], features, BP))
-    #p3 = ctx.Process(target=train_process, args=(modelos[2], features, Time))
+    p3 = ctx.Process(target=train_process, args=(modelos[2], features, Time))
 
     # Start task execution
-    p1.start()
+    #p1.start()
     #p2.start()
-    #p3.start()
+    p3.start()
 
     # Wait for process to complete execution
-    p1.join()
+    #p1.join()
     #p2.join()
-    #p3.join()
+    p3.join()
 
 
 if __name__ == "__main__":

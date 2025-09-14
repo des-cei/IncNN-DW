@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import os
 import tensorflow as tf
-from keras import layers, Sequential
+from keras import layers, Sequential, initializers
 import time
 import pickle
 import multiprocessing as mp
@@ -67,9 +67,9 @@ def train_process(mt, L1, features, labels):
 
                     model = Sequential([
                         layers.Input(shape=(features.shape[1],)),
-                        layers.Dense(L1, activation='relu'),
-                        layers.Dense(L2, activation='relu'),
-                        layers.Dense(L3, activation='relu'),
+                        layers.Dense(L1, activation='relu', kernel_initializer=initializers.RandomNormal(seed=1) , bias_initializer=initializers.zeros()),
+                        layers.Dense(L2, activation='relu', kernel_initializer=initializers.RandomNormal(seed=1) , bias_initializer=initializers.zeros()),
+                        layers.Dense(L3, activation='relu', kernel_initializer=initializers.RandomNormal(seed=1) , bias_initializer=initializers.zeros()),
                         layers.Dense(1)
                     ])
 
