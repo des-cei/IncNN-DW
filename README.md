@@ -18,6 +18,7 @@ tensorflow 2.19.0
 ###########################
 Model_Architecture_Research
 ###########################
+
 To execute this programs, the current working directory must be the Model_Architecture_Research folder. Inside this folder there are 4 folders for collecting results and one folder for the python codes. There are three types of codes in this section, Modeling, Dictionary_management and Pareto:
 
 The modeling files consist on:
@@ -39,7 +40,99 @@ The pareto programs prepare pareto graphs of the performance indicators obtained
 #################
 FL_Implementation
 #################
-To execute this programs, the current working directory must be the FL_Implementation folder. Inside this folder, the user can find the dataset used, a program to generate three independent subdatasets, and an auxiliary functions program for the framework. Then four folders are found, one for results and one to implement FL techniques with each type of model (Top Power, Bottom Power and Time). Each of these last three folders share the same structure:
+
+To execute this programs, the current working directory must be the FL_Implementation folder. Furthermore, it is necessary to modify two functions inside the flwr library. In Flwr/server/server.py:
+- The user must import os, pickle and time libraries at the start file
+- Function fit_round() should be substituted by:
+def fit_round(
+    self,
+    server_round: int,
+    timeout: Optional[float],
+) -> Optional[
+    tuple[Optional[Parameters], dict[str, Scalar], FitResultsAndFailures]
+]:
+    """Perform a single round of federated averaging."""
+    # Get clients and their respective instructions from strategy
+    client_instructions = self.strategy.configure_fit(
+        server_round=server_round,
+        parameters=self.parameters,
+        client_manager=self._client_manager,
+    )
+
+    if not client_instructions:
+        log(INFO, "configure_fit: no clients selected, cancel")
+        return None
+    log(
+        INFO,
+        "configure_fit: strategy sampled %s clients (out of %s)",
+        len(client_instructions),
+        self._client_manager.num_available(),
+    )
+
+    # Collect `fit` results from all clients participating in this round
+    results, failures = fit_clients(
+        client_instructions=client_instructions,
+        max_workers=self.max_workers,
+        timeout=timeout,
+        group_id=server_round,
+    )
+    log(
+        INFO,
+        "aggregate_fit: received %s results and %s failures",
+        len(results),
+        len(failures),
+    )
+
+    start_time = time.perf_counter()
+    # Aggregate training results
+    aggregated_result: tuple[
+        Optional[Parameters],
+        dict[str, Scalar],
+    ] = self.strategy.aggregate_fit(server_round, results, failures)
+    end_time = time.perf_counter()
+
+    aggregate_time = end_time - start_time
+
+    dataset_path_path = os.path.dirname(os.getcwd())
+    path = os.path.join(
+        dataset_path_path,
+        "Results",
+        "provisionary_parameters_models",
+        f"server_round_{server_round}",
+        "aggregate_time.pkl"
+    )
+    with open(path, "wb") as h:
+        pickle.dump(aggregate_time, h, protocol=pickle.HIGHEST_PROTOCOL)
+
+    parameters_aggregated, metrics_aggregated = aggregated_result
+    return parameters_aggregated, metrics_aggregated, (results, failures)
+
+
+
+- Function fit_client() should be substituted by:
+def fit_client(
+    client: ClientProxy, ins: FitIns, timeout: Optional[float], group_id: int, index: int
+) -> tuple[ClientProxy, FitRes]:
+    """Refine parameters on a single client."""
+    fit_res = client.fit(ins, timeout=timeout, group_id=group_id)
+    params = fit_res.parameters
+
+    dataset_path_path = os.path.dirname(os.getcwd())
+    path = os.path.join(
+        dataset_path_path,
+        "Results",
+        "provisionary_parameters_models",
+        f"server_round_{group_id}",
+        f"parameters_model_client_{index+1}.pkl"
+    )
+    with open(path, "wb") as h:
+        pickle.dump(params, h, protocol=pickle.HIGHEST_PROTOCOL)
+
+    return client, fit_res
+
+
+
+Inside the FL_Implementation folder, the user can find the dataset used, a program to generate three independent subdatasets, and an auxiliary functions program for the framework. Then four folders are found, one for results and one to implement FL techniques with each type of model (Top Power, Bottom Power and Time). Each of these last three folders share the same structure:
 
 Federated_Learning_{Model_type}
 - A folder named Program containing three files: server_app.py in charge of describing the server behaviour in a FL implementation using Flwr library, client_app.py in charge of describing the client behaviour, and task.py which defines how each client/server loads their model and respective dataset.
